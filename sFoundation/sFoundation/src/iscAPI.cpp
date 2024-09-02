@@ -45,7 +45,6 @@
 //
 /// \cond   INTERNAL_DOC
 #include <stdlib.h>
-#include <malloc.h>
 #include <assert.h>
 #include <stdint.h>
 #include <math.h>

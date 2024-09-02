@@ -299,14 +299,14 @@ MN_EXPORT cnErrCode MN_DECL infcGetHubPorts(std::vector<std::string> &comHubPort
     comHubPorts.clear();
     FILE *pfd = popen("ls /dev/ttyXRUSB*", "r");
 
-    if (pfd <= 0) {
-        throw std::runtime_error("Command or process could not be executed.");
+    if (pfd == nullptr) {
+    throw std::runtime_error("Command or process could not be executed.");
     }
 
     while (!feof(pfd)) {
         char buf[ 1024 ] = {0};
 
-        if (fgets(buf, sizeof(buf), pfd) > 0) {
+        if (fgets(buf, sizeof(buf), pfd) != nullptr) {
             std::string str(buf);
             // TODO: check the VID/PID of the device using udevadm/libudev to
             // verify that this is a Teknic SC4-Hub (vid=2890, pid=0213)

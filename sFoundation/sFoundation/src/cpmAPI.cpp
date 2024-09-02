@@ -54,7 +54,6 @@
 /// \cond   INTERNAL_DOC
 #include <math.h>
 #include <stdlib.h>
-#include <malloc.h>
 #include "lnkAccessCommon.h"
 
 #if defined(_MSC_VER)

@@ -1,13 +1,13 @@
 # Teknic sFoundation Makefile
 #
-# To build libsFoundation20.so, simply change to this directory and type make.
+# To build libsFoundation20.dylib, simply change to this directory and type make.
 # 
 # By default, this makefile configures g++ to suppress all warning output. If
 # you plan on modifying sFoundation, you will probably want to disable that.
 # Simply modify the CXXFLAGS variable below with the warnings you want to see,
 # and be sure to remove the -w option.
 
-SO_NAME := libsFoundation20.so
+SO_NAME := libsFoundation20.dylib
 SO_MAJOR_VERSION := 1
 
 # The names of the directories all of the built artifacts will be stored in
@@ -24,12 +24,12 @@ OPTIMIZATION := -O3
 CXXFLAGS := -std=c++11                   \
             -fPIC                        \
             -fsigned-char                \
-            -Wno-stringop-overflow       \
-            -Wno-format-truncation       \
             -Wno-deprecated-declarations \
-            -Wno-format-overflow         \
+            # -Wno-stringop-overflow       \
+            # -Wno-format-truncation       \
+            # -Wno-format-overflow         \
             $(OPTIMIZATION)
-LIBS := -lrt -ldl
+LIBS := -ldl
 INCLUDES := ../inc/inc-pub \
             ../inc/inc-private \
             ../inc/inc-private/linux \
@@ -70,7 +70,7 @@ $(BUILD_DIR)/%.o: %.cpp | $$(@D)/. $(DEPDIR)
 
 # Common Build Target -- build object files and link them together
 libsFoundation20: dir $(REL_OBJ_FILES)
-	$(CXX) $(CXXFLAGS) -shared -Wl,-soname=$(SO_NAME).$(SO_MAJOR_VERSION) -o "$(SO_NAME)" $(REL_OBJ_FILES) $(LIBS)
+	$(CXX) $(CXXFLAGS) -shared -Wl,-install_name,@rpath/$(SO_NAME) -o "$(SO_NAME)" $(REL_OBJ_FILES) $(LIBS)
 
 # Create the root directory for all of the build artifacts
 .PHONY: dir

@@ -40,6 +40,18 @@
 #include <termios.h>
 #include <signal.h>
 
+#ifndef B460800
+#define B460800 460800
+#endif
+
+#ifndef B921600
+#define B921600 921600
+#endif
+
+#ifndef B1152000
+#define B1152000 1152000
+#endif
+
 #ifdef _DEBUG
     #define T_ON TRUE
 #else

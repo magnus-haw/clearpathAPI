@@ -21,8 +21,6 @@
 #ifndef __TEKEVENTS_H__
 #define	__TEKEVENTS_H__
 
-
-
 //******************************************************************************
 // NAME																           *
 // 	tekEvents.h headers
@@ -57,7 +55,6 @@
 #define LPSECURITY_ATTRIBUTES void *
 typedef void * HANDLE;
 
-
 //*****************************************************************************
 //   NAME
 //           CCaddAbsTime
@@ -77,9 +74,8 @@ typedef void * HANDLE;
 inline void CCaddAbsTime(timespec &abs_time, double incrMilliseconds)
 {
 	// Try better clock, if not fallback on common
-	//if(clock_gettime( CLOCK_MONOTONIC, &abs_time )) {
-		assert(clock_gettime( CLOCK_REALTIME, &abs_time ) == 0);
-	//}
+	assert(clock_gettime( CLOCK_REALTIME, &abs_time ) == 0);
+
 	nodeulong secs = CAST_NODEULONG(incrMilliseconds/1000);
 	abs_time.tv_sec += secs;
 	// Prevent overflow on longer time-outs
@@ -89,9 +85,53 @@ inline void CCaddAbsTime(timespec &abs_time, double incrMilliseconds)
 		abs_time.tv_sec += 1;
 	}
 }
-//
-//*****************************************************************************
 
+//*****************************************************************************
+// Custom replacement for sem_timedwait for macOS
+inline int sem_timedwait_replacement(sem_t *sem, const struct timespec *abs_timeout) {
+    int ret = -1;
+    while (true) {
+        if (sem_trywait(sem) == 0) {
+            ret = 0;
+            break;
+        }
+
+        struct timespec now;
+        clock_gettime(CLOCK_REALTIME, &now);
+
+        if (now.tv_sec > abs_timeout->tv_sec ||
+            (now.tv_sec == abs_timeout->tv_sec && now.tv_nsec >= abs_timeout->tv_nsec)) {
+            ret = -1;
+            errno = ETIMEDOUT;
+            break;
+        }
+
+        // Sleep for a short interval before retrying
+        struct timespec sleep_time = {0, 1000000}; // 1 millisecond
+        nanosleep(&sleep_time, nullptr);
+    }
+    return ret;
+}
+
+// Custom replacement for pthread_mutex_timedlock for macOS
+inline int pthread_mutex_timedlock_replacement(pthread_mutex_t *mutex, const struct timespec *abs_timeout) {
+    int ret = 0;
+    while ((ret = pthread_mutex_trylock(mutex)) == EBUSY) {
+        struct timespec now;
+        clock_gettime(CLOCK_REALTIME, &now);
+
+        if (now.tv_sec > abs_timeout->tv_sec ||
+            (now.tv_sec == abs_timeout->tv_sec && now.tv_nsec >= abs_timeout->tv_nsec)) {
+            ret = ETIMEDOUT;
+            break;
+        }
+
+        // Sleep for a short interval before retrying
+        struct timespec sleep_time = {0, 1000000}; // 1 millisecond
+        nanosleep(&sleep_time, nullptr);
+    }
+    return ret;
+}
 
 //*****************************************************************************
 //   NAME
@@ -101,11 +141,12 @@ inline void CCaddAbsTime(timespec &abs_time, double incrMilliseconds)
 //           02/08/2010 11:37:08
 //
 //   DESCRIPTION:
-///          The classic resource counting mutual exclusion device.  A request
-///          to Lock is blocked via the scheduler until some other thread
-///          Unlocks the resource. Optionally multiple "counts" can be made
-///          available if required.
-//
+/**
+          The classic resource counting mutual exclusion device.  A request
+          to Lock is blocked via the scheduler until some other thread
+          Unlocks the resource. Optionally multiple "counts" can be made
+          available if required.
+ **/
 //   SYNOPSIS:
 class CCSemaphore
 {
@@ -129,7 +170,7 @@ public:
 		} else {
 			struct timespec abs_time;
 			CCaddAbsTime(abs_time, timeoutMsec);
-			r = sem_timedwait( &sem, &abs_time );
+			r = sem_timedwait_replacement(&sem, &abs_time); // Use the replacement function
 		}
 	  	return r == -1 ? false : true;
 	}
@@ -153,10 +194,6 @@ public:
 protected:
 	sem_t sem;
 };
-//
-//*****************************************************************************
-
-
 
 //*****************************************************************************
 //	NAME
@@ -208,7 +245,6 @@ public:
 	// Signal and leave signaled our event
 	bool SetEvent ( bool do_mutex = true )
 	{
-//		_RPT1(_CRT_WARN, "Evt Set 0x%lx\n", this);
 		int r = EOK;
 		if ( do_mutex ) assert(pthread_mutex_lock( &mutex )==EOK);
 
@@ -223,11 +259,9 @@ public:
 	// Un-signal and block waiters
 	bool ResetEvent ()
 	{
-//		_RPT1(_CRT_WARN, "Evt Reset 0x%lx\n", this);
 		m_set = false;
 	  	return true;
 	}
-
 
 	// Cause the calling thread to block until "signaled" or TimeOut
 	// occurs. Returns TRUE if wait was signaled normally.
@@ -261,9 +295,6 @@ public:
 	}
 
 };
-//
-//*****************************************************************************
-
 
 //*****************************************************************************
 //	NAME
@@ -283,13 +314,8 @@ protected:
 public:
   	CCCriticalSection ()
 	{
-  		//pthread_mutexattr_t psharedm;
-  		//(void) pthread_mutexattr_init(&psharedm);
-  		//(void) pthread_mutexattr_settype(&psharedm, PTHREAD_MUTEX_RECURSIVE);
-  		//assert(pthread_mutex_init( &mutex, &psharedm )==EOK);
   		assert(pthread_mutex_init( &mutex, NULL )==EOK);
- 		// might need to set PTHREAD_PROCESS_SHARED
-	}
+ 	}
 
   	~CCCriticalSection ()
 	{
@@ -315,15 +341,11 @@ public:
 		} else {
 			struct timespec abs_time;
 			CCaddAbsTime(abs_time, timeoutMsec);
-			r = pthread_mutex_timedlock( &mutex, &abs_time );
+			r = pthread_mutex_timedlock_replacement( &mutex, &abs_time ); // Use the replacement function
 		}
-		//if ( r ) throw ;
 	  	return r==EOK;
 	}
 };
-//
-//*****************************************************************************
-
 
 //*****************************************************************************
 //	NAME
@@ -343,13 +365,8 @@ protected:
 public:
 	 CCMutex ()
 	{
-  		//pthread_mutexattr_t psharedm;
-  		//(void) pthread_mutexattr_init(&psharedm);
-  		//(void) pthread_mutexattr_settype(&psharedm, PTHREAD_MUTEX_RECURSIVE);
-  		//assert(pthread_mutex_init( &mutex, &psharedm )==EOK);
   		assert(pthread_mutex_init( &mutex, NULL )==EOK);
- 		// might need to set PTHREAD_PROCESS_SHARED
-	}
+ 	}
 
   	~CCMutex ()
 	{
@@ -375,17 +392,11 @@ public:
 		} else {
 			struct timespec abs_time;
 			CCaddAbsTime(abs_time, timeoutMsec);
-			r = pthread_mutex_timedlock( &mutex, &abs_time );
+			r = pthread_mutex_timedlock_replacement( &mutex, &abs_time ); // Use the replacement function
 		}
-		//if ( r ) throw ;
 	  	return r==EOK;
 	}
 };
-//
-//*****************************************************************************
-
-
-
 
 //*****************************************************************************
 //	NAME																	  *
@@ -423,10 +434,6 @@ public:
 		     bool bWaitForAll=true,Uint32 dwWakeMask=0);
 
 };
-//																			  *
-//*****************************************************************************
-
-
 
 //*****************************************************************************
 //	NAME																	  *
@@ -454,11 +461,8 @@ public:
 		return __sync_sub_and_fetch(&m_value,1);
 	}
 };
-//																			  *
-//*****************************************************************************
 
-
-#endif
 //=============================================================================
 //	END OF FILE tekEvents.h
 //=============================================================================
+#endif

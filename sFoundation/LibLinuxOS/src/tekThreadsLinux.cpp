@@ -42,7 +42,7 @@
 	#include <sys/types.h>
     #include <sys/syscall.h>
     #include <errno.h>
-    #include <asm-generic/errno-base.h>
+   	#include <errno.h>
 	using namespace std;
 
 //																			  *
@@ -168,7 +168,14 @@ void *CThread::ThreadEntry( void * arg )
 {
 	CThread * t = static_cast< CThread * > ( arg );
 
-	t->m_idThreadSaved = nodeulong(t->m_idThread = pthread_self());
+	#include <cstdint> // Ensure this is included
+
+	// Change the type to uintptr_t
+	uintptr_t m_idThreadSaved;
+
+	// Use uintptr_t in the cast
+	t->m_idThreadSaved = reinterpret_cast<uintptr_t>(pthread_self());
+
 	t->m_uiID = nodeulong(syscall(SYS_gettid));
 	// Setup random number generator
 	srand(1);				// reset random # gen
@@ -482,7 +489,8 @@ void CThread::SetTerminateFlag(nodebool *pFlag)
 //	SYNOPSIS:
 nodeulong CThread::CurrentThreadID()
 {
-	return(nodeulong(pthread_self()));
+	return(reinterpret_cast<uintptr_t>(pthread_self()));
+
 }
 //																			  *
 //*****************************************************************************
